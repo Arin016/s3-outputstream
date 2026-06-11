@@ -1,70 +1,34 @@
 # S3 OutputStream
 
-[![CI](https://github.com/arinmallanna/s3-outputstream/actions/workflows/ci.yml/badge.svg)](https://github.com/arinmallanna/s3-outputstream/actions/workflows/ci.yml)
+[![CI](https://github.com/Arin016/s3-outputstream/actions/workflows/ci.yml/badge.svg)](https://github.com/Arin016/s3-outputstream/actions/workflows/ci.yml)
 [![Java 11+](https://img.shields.io/badge/Java-11%2B-blue)](https://openjdk.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**A `java.io.OutputStream` that streams data directly to Amazon S3 using multipart upload — with bounded, predictable memory usage.**
+A `java.io.OutputStream` that writes directly to S3 via multipart upload. Fixed 5 MB of memory whether you're uploading 1 KB or 10 GB.
 
-This fills a fundamental gap in the [AWS SDK for Java v2](https://github.com/aws/aws-sdk-java-v2): there is no `OutputStream`-based upload API. This has been an [open feature request since 2022](https://github.com/aws/aws-sdk-java-v2/issues/3128), raised by the Spring Cloud AWS maintainer, with multiple duplicates.
+This exists because the AWS SDK for Java v2 doesn't have one. [They know.](https://github.com/aws/aws-sdk-java-v2/issues/3128) It's been an open request since 2022.
 
----
+## Why this exists
 
-## Table of Contents
+Every Java library that generates output gives you an `OutputStream`:
 
-- [The Problem](#the-problem)
-- [The Solution](#the-solution)
-- [Architecture](#architecture)
-- [Usage Examples](#usage-examples)
-- [Memory Model](#memory-model)
-- [Design Decisions](#design-decisions)
-- [API Reference](#api-reference)
-- [Building & Testing](#building--testing)
-- [Motivation & Background](#motivation--background)
-
----
-
-## The Problem
-
-The AWS SDK for Java v2 only accepts uploads as:
-- `byte[]` (entire content in memory)
-- `InputStream` with a **known content length** (must know size upfront)
-- `RequestBody` (same constraints)
-
-But most Java libraries **produce** output via `OutputStream` — where you don't know the final size upfront:
-
-| Library | API | The Conflict |
-|---------|-----|--------------|
-| Apache POI (Excel) | `workbook.write(outputStream)` | Generates .xlsx — size unknown until done |
-| PDFBox | `document.save(outputStream)` | PDF structure finalized at write time |
-| `ZipOutputStream` | wraps an `OutputStream` | Compressed size unknowable in advance |
-| `GZIPOutputStream` | wraps an `OutputStream` | Same — compression ratio varies |
-| ImageIO | `ImageIO.write(img, fmt, outputStream)` | Encoded size depends on content |
-
-**Without this library, you're forced to choose:**
-
-```
-Option A: Buffer everything in memory
-├── Simple code
-└── OOM crash on large files (100MB+ Excel, multi-GB ZIPs)
-
-Option B: Write to a temp file, then upload
-├── Works for any size
-├── Doubles total I/O (write to disk, read back, upload)
-├── Requires available disk space
-└── Adds latency (two sequential I/O passes)
-
-Option C: Roll your own multipart upload plumbing  ← what everyone does
-├── ~100-200 lines of boilerplate per project
-├── Easy to get wrong (orphaned parts, no abort on failure)
-└── Duplicated across thousands of codebases
+```java
+workbook.write(outputStream);    // Apache POI
+document.save(outputStream);     // PDFBox
+new ZipOutputStream(outputStream); // JDK
 ```
 
-**This library is Option C, done once, correctly.**
+But S3 wants one of: `byte[]`, `InputStream` with known length, or `RequestBody`. You can't hand it an `OutputStream`.
 
----
+So every team that needs to write POI/ZIP/PDF output to S3 ends up choosing between:
 
-## The Solution
+- **Buffer it all in memory** → works until it doesn't (OOM at 200 MB+)
+- **Write to temp file, then upload** → double I/O, needs disk, adds latency
+- **Roll your own multipart wrapper** → 100-200 lines of plumbing, usually missing abort-on-failure
+
+I've done option 3 enough times in production that I extracted it into something reusable.
+
+## Usage
 
 ```java
 try (S3OutputStream out = S3OutputStream.builder()
@@ -73,262 +37,72 @@ try (S3OutputStream out = S3OutputStream.builder()
         .key("exports/report.xlsx")
         .build()) {
 
-    workbook.write(out);  // Streams directly to S3. Done.
+    workbook.write(out);  // done. 5 MB peak heap.
 }
 ```
 
-**What happens under the hood:**
+It's an `OutputStream`. Wrap it in `ZipOutputStream`, `GZIPOutputStream`, whatever — it just works.
 
-```
-Your code          S3OutputStream             Amazon S3
-─────────          ──────────────             ─────────
-write(bytes) ────► buffer (5 MB)
-                       │
-                   buffer full? ──────────► UploadPart #1 ──► stored
-                       │
-write(bytes) ────► buffer (5 MB)
-                       │
-                   buffer full? ──────────► UploadPart #2 ──► stored
-                       │
-close() ──────────► flush remainder ──────► UploadPart #3 ──► stored
-                       │
-                   CompleteMultipartUpload ─► parts assembled into final object
-```
-
-**If anything fails:**
-
-```
-exception ────► AbortMultipartUpload ────► orphaned parts deleted (no storage cost)
-```
-
----
-
-## Architecture
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                        S3OutputStream                           │
-│  (java.io.OutputStream)                                        │
-│                                                                │
-│  Responsibilities:                                             │
-│  • Buffer management (fill → flush → reuse)                   │
-│  • State machine (BUFFERING → MULTIPART → COMPLETED/ABORTED)  │
-│  • Smart path selection (PutObject vs Multipart)              │
-│  • Error handling (auto-abort on failure)                      │
-├────────────────────────────────────────────────────────────────┤
-│                           │                                    │
-│                    UploadStrategy (interface)                   │
-│                           │                                    │
-│              ┌────────────┴────────────┐                      │
-│              │                         │                      │
-│   S3ClientUploadStrategy      (your mock for tests)           │
-│   (translates to AWS SDK)                                     │
-└────────────────────────────────────────────────────────────────┘
-```
-
-**Class responsibilities (Single Responsibility Principle):**
-
-| Class | One Job |
-|-------|---------|
-| `S3OutputStream` | Buffer management + state machine + OutputStream contract |
-| `UploadStrategy` | Abstract interface for upload operations (Strategy pattern) |
-| `S3ClientUploadStrategy` | Translate domain calls → AWS SDK S3Client calls |
-| `UploadState` | Type-safe lifecycle states (replaces boolean flags) |
-| `CompletedPartInfo` | Immutable value object for completed part metadata |
-| `S3UploadException` | Contextual error with bucket/key for debugging |
-
----
-
-## Usage Examples
-
-### 1. Stream an Excel workbook to S3 (Apache POI)
-
-```java
-S3Client s3 = S3Client.create();
-
-try (S3OutputStream out = S3OutputStream.builder()
-        .s3Client(s3)
-        .bucket("reports")
-        .key("monthly/2024-Q4.xlsx")
-        .build()) {
-
-    SXSSFWorkbook workbook = generateLargeReport(); // 500K rows
-    workbook.write(out);  // Only 5 MB in heap — not 200 MB
-    workbook.dispose();
-}
-```
-
-### 2. Stream a ZIP archive to S3
+### Stream a ZIP to S3
 
 ```java
 try (S3OutputStream s3Out = S3OutputStream.builder()
-        .s3Client(s3)
-        .bucket("data-lake")
-        .key("exports/2024-Q4.zip")
-        .build();
+        .s3Client(s3).bucket("b").key("archive.zip").build();
      ZipOutputStream zip = new ZipOutputStream(s3Out)) {
 
-    for (String fileName : filesToArchive) {
-        zip.putNextEntry(new ZipEntry(fileName));
-        try (InputStream in = readFileStream(fileName)) {
-            in.transferTo(zip);
-        }
+    for (Path file : files) {
+        zip.putNextEntry(new ZipEntry(file.getFileName().toString()));
+        Files.copy(file, zip);
         zip.closeEntry();
     }
 }
-// ZIP is complete in S3 — peak memory was 5 MB regardless of archive size
 ```
 
-### 3. Stream a PDF to S3 (PDFBox)
+### Bigger parts = fewer API calls
 
 ```java
-try (S3OutputStream out = S3OutputStream.builder()
-        .s3Client(s3)
-        .bucket("documents")
-        .key("invoices/INV-2024-1234.pdf")
-        .build()) {
-
-    PDDocument document = generateInvoice();
-    document.save(out);
-    document.close();
-}
+// 50 MB buffer: 20 API calls for 1 GB instead of 200
+S3OutputStream.builder()
+    .s3Client(s3).bucket("b").key("k")
+    .partSize(50 * 1024 * 1024)
+    .build();
 ```
 
-### 4. Custom part size (trade memory for fewer API calls)
+## How it works
 
-```java
-// 50 MB parts: uses 50 MB heap, but only 20 API calls for a 1 GB file
-// (vs default 5 MB parts = 5 MB heap, 200 API calls)
-try (S3OutputStream out = S3OutputStream.builder()
-        .s3Client(s3)
-        .bucket("big-data")
-        .key("dumps/full-export.bin")
-        .partSize(50 * 1024 * 1024)
-        .build()) {
-
-    exportEntireDatabase(out);
-}
+```
+write(bytes) ──► fills 5 MB buffer
+                      │
+                  full? ──► uploadPart #N ──► S3
+                      │
+                  reset buffer, repeat
+                      │
+close() ──────► flush remainder ──► uploadPart (final)
+                      │
+                  completeMultipartUpload ──► done
 ```
 
-### 5. Explicit abort on error
+If total data never exceeds one part, it skips multipart entirely and does a single `PutObject`. No overhead for small files.
 
-```java
-S3OutputStream out = S3OutputStream.builder()
-        .s3Client(s3).bucket("b").key("k").build();
-try {
-    riskyOperation(out);
-    out.close(); // completes the upload
-} catch (Exception e) {
-    out.abort(); // explicitly cancel — no partial/corrupt object in S3
-    throw e;
-}
-```
+If anything fails at any point: `AbortMultipartUpload`. No orphaned parts, no silent storage costs.
 
----
+## Memory
 
-## Memory Model
+One `byte[]` of size `partSize` (default 5 MB). Allocated once, reused for every part, released on close. That's it.
 
-**Guarantee:** peak heap usage = `partSize` bytes (default 5 MB) + negligible overhead.
+| Upload size | Heap used | S3 API calls |
+|-------------|-----------|--------------|
+| 100 bytes   | 5 MB      | 1 (PutObject) |
+| 50 MB       | 5 MB      | 10 + complete |
+| 1 GB        | 5 MB      | 200 + complete |
 
-| Scenario | Part Size | Heap Used | S3 API Calls | Total Data |
-|----------|-----------|-----------|--------------|------------|
-| Small file (1 MB) | 5 MB | 5 MB | 1 (PutObject) | 1 MB |
-| Medium file (50 MB) | 5 MB | 5 MB | 10 UploadPart + Complete | 50 MB |
-| Large file (1 GB) | 5 MB | 5 MB | 200 UploadPart + Complete | 1 GB |
-| Large file (1 GB) | 50 MB | 50 MB | 20 UploadPart + Complete | 1 GB |
+## What it handles that ad-hoc implementations usually don't
 
-The buffer is **reused** (not reallocated) across parts — zero GC pressure during streaming. After `close()` or `abort()`, the buffer reference is released for GC.
-
----
-
-## Design Decisions
-
-| Decision | Why |
-|----------|-----|
-| **Strategy pattern** for S3 interaction | Decouples SDK calls from stream logic. Unit tests use a `RecordingUploadStrategy` — no SDK mocking, no Mockito, no network. Future: swap in an async strategy without touching S3OutputStream. |
-| **State enum** (`UploadState`) over boolean flags | A stream has exactly 4 possible states. An enum makes illegal transitions compile-time errors. Three booleans (`closed`, `aborted`, `multipartStarted`) create 8 combinations — 4 of which are nonsensical. |
-| **Single PutObject** for data ≤ part size | Multipart has overhead (3 API calls minimum). Small writes (a 100-byte JSON config) shouldn't pay that cost. |
-| **Auto-abort on failure** | S3 charges for orphaned incomplete multipart parts. Forgetting to abort is a silent money leak. We abort automatically on any exception in `close()`. |
-| **Builder pattern** with validation | Required fields checked at construction time, not at first write. Fail fast, fail clearly. |
-| **Buffer reuse** (not reallocate per part) | Zero GC pressure. One allocation for the stream's entire lifetime. |
-| **`provided` scope** for AWS SDK dependency | Users bring their own SDK version. No transitive version conflicts. |
-
----
-
-## API Reference
-
-### `S3OutputStream.builder()`
-
-| Method | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `.s3Client(S3Client)` | Yes | — | The AWS S3Client instance |
-| `.bucket(String)` | Yes | — | Target S3 bucket |
-| `.key(String)` | Yes | — | Target S3 object key |
-| `.partSize(int)` | No | 5 MB | Part size in bytes (min 5 MB per S3 rules) |
-| `.build()` | — | — | Validates and constructs the stream |
-
-### Instance methods
-
-| Method | Description |
-|--------|-------------|
-| `write(int)` / `write(byte[], int, int)` | Standard OutputStream writes |
-| `close()` | Completes the upload (or aborts on failure) |
-| `abort()` | Explicitly cancels the upload (idempotent) |
-| `getTotalBytesWritten()` | Bytes written so far |
-| `getPartsUploaded()` | Parts uploaded (0 while in single-put mode) |
-| `getState()` | Current lifecycle state |
-
----
-
-## Building & Testing
-
-```bash
-# Build and run all tests
-./mvnw verify
-
-# Tests only
-./mvnw test
-```
-
-**Test output:**
-```
-Tests run: 20, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-```
-
-Tests cover:
-- Single PutObject path (empty, small, boundary)
-- Multipart path (2-part, 3-part, incremental byte writes, exact boundaries)
-- Error semantics (write-after-close, write-after-abort, failure propagation, auto-abort)
-- Builder validation (missing params, invalid part size)
-
-All tests run in <100ms with zero network I/O (Strategy pattern enables pure unit testing).
-
----
-
-## Motivation & Background
-
-I built this while designing a production export pipeline that streams 500K–5M records into Excel/ZIP files and uploads them directly to S3 with bounded memory (64 MB heap for multi-GB exports). The pipeline needed to:
-
-1. Write Apache POI `SXSSFWorkbook` output to S3 (POI only offers `workbook.write(OutputStream)`)
-2. Stream `ZipOutputStream` directly to S3 (wrapping multiple workbooks into a ZIP)
-3. Hold memory constant regardless of export size (the server handles concurrent exports)
-
-The AWS SDK's lack of an `OutputStream` forced every user of POI/ZipOutputStream in the ecosystem to independently solve this problem — typically with ad-hoc, untested multipart upload wrappers that don't handle abort-on-failure. A [GitHub code search](https://github.com/search?l=Java&q=s3outputstream&type=Code) shows thousands of duplicated implementations.
-
-This library extracts that plumbing into a clean, tested, reusable primitive with proper error semantics.
-
-**Related AWS SDK issues:**
-- [aws/aws-sdk-java-v2#3128](https://github.com/aws/aws-sdk-java-v2/issues/3128) — "Add S3 compatible OutputStream" (open since Mar 2022)
-- [aws/aws-sdk-java-v2#3131](https://github.com/aws/aws-sdk-java-v2/issues/3131) — "Support Uploading to S3 using an OutputStream" (duplicate)
-- [aws/aws-sdk-java#1268](https://github.com/aws/aws-sdk-java/issues/1268) — Same request for SDK v1
-
----
-
-## Requirements
-
-- **Java 11+** (tested on 11, 17, 21)
-- **AWS SDK for Java v2** (`software.amazon.awssdk:s3`) — provided scope, bring your own version
+- **Auto-abort on failure.** If `completeMultipartUpload` throws (or anything before it), we abort. Orphaned multipart parts cost money until lifecycle rules clean them up. Most wrappers I've seen in the wild don't do this.
+- **Idempotent close/abort.** Call `close()` twice, nothing breaks. Call `abort()` after close, nothing breaks.
+- **Write-after-close throws immediately.** Not silently drops bytes.
+- **Single-put optimization.** A 500-byte config file shouldn't pay the 3-call multipart tax.
+- **Strategy pattern.** All 20 unit tests run in <100ms with zero network calls. The S3 SDK is injected via an interface — swap it out, test the buffering logic in isolation.
 
 ## Installation
 
@@ -340,6 +114,27 @@ This library extracts that plumbing into a clean, tested, reusable primitive wit
 </dependency>
 ```
 
+Requires AWS SDK for Java v2 on your classpath (it's `provided` scope — bring your own version).
+
+## Building
+
+```bash
+./mvnw verify  # compiles + runs all 20 unit tests
+```
+
+Integration tests (needs a real S3 bucket + creds):
+```bash
+S3_TEST_BUCKET=your-bucket AWS_PROFILE=your-profile ./mvnw test-compile -q && \
+java -ea -cp "target/classes:target/test-classes:$(cat target/cp.txt)" \
+  io.github.arinmallanna.s3outputstream.S3OutputStreamIntegrationTest
+```
+
+## Background
+
+I built this while working on a production export pipeline that generates 500K+ row Excel files and streams them to S3 as ZIPs. The pipeline maintains ~7 MB peak memory regardless of export size (the 5 MB S3 write buffer + a 2 MB read buffer for streaming source data into the ZIP). Without an OutputStream-to-S3 bridge, you're stuck buffering entire workbooks in memory before upload — which blows up at scale.
+
+The AWS SDK's `BlockingOutputStreamAsyncRequestBody` exists for the async client but has different semantics (requires async S3 client, different threading model). A synchronous `S3OutputStream` for the sync client — the one most Java backends actually use — is genuinely missing from the ecosystem.
+
 ## License
 
-[Apache 2.0](LICENSE)
+Apache 2.0
