@@ -1,0 +1,4 @@
+# Pin direct dependencies; each evidence run also archives pip freeze.
+moto[server]==5.1.12
+psutil==7.0.0
+matplotlib==3.10.6
