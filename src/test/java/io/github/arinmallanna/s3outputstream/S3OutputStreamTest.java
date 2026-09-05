@@ -39,6 +39,7 @@ class S3OutputStreamTest {
                 .bucket("test-bucket")
                 .key("test-key")
                 .partSize(partSize)
+                .autoCommitOnClose(true) // explicit migration coverage of original suite
                 .build();
     }
 
@@ -74,21 +75,18 @@ class S3OutputStreamTest {
         @Test
         @DisplayName("write exactly one part size uses PutObject (boundary)")
         void exactlyOnePartSize() throws IOException {
-            // Use a small part size for fast test execution
+            // Real S3 minimum exercises the exact boundary
             int smallPartSize = PART_SIZE;
             byte[] data = new byte[smallPartSize];
             Arrays.fill(data, (byte) 'X');
 
-            // Writing exactly partSize should trigger multipart (buffer is full)
-            // Actually: when buffer fills at position==partSize, flushBuffer is called,
-            // which initiates multipart. So exactly partSize DOES go multipart.
             try (S3OutputStream out = createStream(smallPartSize)) {
                 out.write(data);
+                assertEquals(0, strategy.initiateUploadCount);
             }
-            // Buffer fills → flushBuffer called → multipart initiated → part uploaded
-            // Then close() sees no remaining buffer, completes multipart
-            assertEquals(1, strategy.initiateUploadCount);
-            assertEquals(1, strategy.uploadedParts.size());
+            assertEquals(0, strategy.initiateUploadCount);
+            assertEquals(1, strategy.putObjectCalls.size());
+            assertArrayEquals(data, strategy.putObjectCalls.get(0));
         }
 
         @Test
@@ -202,7 +200,7 @@ class S3OutputStreamTest {
 
         @Test
         @DisplayName("write after abort throws S3UploadException")
-        void writeAfterAbort() {
+        void writeAfterAbort() throws IOException {
             S3OutputStream out = createStream();
             out.abort();
             assertThrows(S3UploadException.class, () -> out.write(1));
@@ -234,9 +232,9 @@ class S3OutputStreamTest {
             strategy.failOnPartUpload = true;
             S3OutputStream out = createStream();
 
-            assertThrows(S3UploadException.class, () -> out.write(new byte[PART_SIZE]));
+            assertThrows(S3UploadException.class, () -> out.write(new byte[PART_SIZE + 1]));
             assertTrue(strategy.abortCalled);
-            assertEquals(UploadState.ABORTED, out.getState());
+            assertEquals(UploadState.FAILED, out.getState());
         }
 
         @Test
@@ -249,7 +247,7 @@ class S3OutputStreamTest {
 
             assertThrows(S3UploadException.class, out::close);
             assertTrue(strategy.abortCalled);
-            assertEquals(UploadState.ABORTED, out.getState());
+            assertEquals(UploadState.FAILED, out.getState());
         }
 
         @Test

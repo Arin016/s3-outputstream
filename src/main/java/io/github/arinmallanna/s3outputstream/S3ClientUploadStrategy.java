@@ -10,6 +10,9 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 
+import java.io.ByteArrayInputStream;
+import java.util.Collections;
+import java.util.Map;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -27,9 +30,17 @@ import java.util.stream.Collectors;
 final class S3ClientUploadStrategy implements UploadStrategy {
 
     private final S3Client s3Client;
+    private final String contentType;
+    private final Map<String, String> metadata;
 
     S3ClientUploadStrategy(S3Client s3Client) {
+        this(s3Client, null, Collections.emptyMap());
+    }
+
+    S3ClientUploadStrategy(S3Client s3Client, String contentType, Map<String, String> metadata) {
         this.s3Client = Objects.requireNonNull(s3Client, "s3Client must not be null");
+        this.contentType = contentType;
+        this.metadata = Map.copyOf(metadata);
     }
 
     @Override
@@ -37,6 +48,8 @@ final class S3ClientUploadStrategy implements UploadStrategy {
         CreateMultipartUploadRequest request = CreateMultipartUploadRequest.builder()
                 .bucket(bucket)
                 .key(key)
+                .contentType(contentType)
+                .metadata(metadata)
                 .build();
         return s3Client.createMultipartUpload(request).uploadId();
     }
@@ -52,9 +65,7 @@ final class S3ClientUploadStrategy implements UploadStrategy {
                 .contentLength((long) length)
                 .build();
 
-        // Copy only the valid bytes to avoid sending garbage beyond `length`
-        byte[] payload = (length == data.length) ? data : copyOf(data, length);
-        return s3Client.uploadPart(request, RequestBody.fromBytes(payload)).eTag();
+        return s3Client.uploadPart(request, requestBody(data, length)).eTag();
     }
 
     @Override
@@ -86,19 +97,23 @@ final class S3ClientUploadStrategy implements UploadStrategy {
 
     @Override
     public void putObject(String bucket, String key, byte[] data, int length) {
-        byte[] payload = (length == data.length) ? data : copyOf(data, length);
         s3Client.putObject(
                 PutObjectRequest.builder()
                         .bucket(bucket)
                         .key(key)
                         .contentLength((long) length)
+                        .contentType(contentType)
+                        .metadata(metadata)
                         .build(),
-                RequestBody.fromBytes(payload));
+                requestBody(data, length));
     }
 
-    private static byte[] copyOf(byte[] src, int length) {
-        byte[] copy = new byte[length];
-        System.arraycopy(src, 0, copy, 0, length);
-        return copy;
+    // The synchronous call owns read access until it returns. Each SDK retry gets
+    // a fresh stream over the valid prefix; the producer reuses the buffer only
+    // after return. No payload copy is needed at this application boundary.
+    private RequestBody requestBody(byte[] data, int length) {
+        Objects.checkFromIndexSize(0, length, data.length);
+        return RequestBody.fromContentProvider(() -> new ByteArrayInputStream(data, 0, length),
+                length, contentType == null ? "application/octet-stream" : contentType);
     }
 }

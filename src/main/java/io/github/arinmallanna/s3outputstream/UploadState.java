@@ -1,30 +1,25 @@
 package io.github.arinmallanna.s3outputstream;
 
-/**
- * Represents the lifecycle state of an S3OutputStream upload.
- *
- * <p>Enforces valid state transitions and eliminates the scattered boolean flags
- * (closed, aborted, multipartInitiated) anti-pattern.
- */
-enum UploadState {
-
-    /** Stream is open and accepting writes. No multipart initiated yet. */
+/** Local upload lifecycle; it does not prove remote absence after an ambiguous failure. */
+public enum UploadState {
+    /** Accepting bytes; no multipart upload has been initiated. */
     BUFFERING,
-
-    /** Multipart upload initiated; parts are being uploaded as buffer fills. */
+    /** Accepting bytes; a multipart upload ID is available. */
     MULTIPART_IN_PROGRESS,
-
-    /** Upload completed successfully. Terminal state. */
+    /** Publication call returned successfully. Terminal. */
     COMPLETED,
+    /** Explicitly aborted locally; remote cleanup was attempted when possible. Terminal. */
+    ABORTED,
+    /** An operation failed; remote publication or cleanup may be uncertain. Terminal. */
+    FAILED;
 
-    /** Upload was aborted (either explicitly or due to error). Terminal state. */
-    ABORTED;
-
-    boolean isTerminal() {
-        return this == COMPLETED || this == ABORTED;
+    /** @return whether no further writes or publication attempts are allowed */
+    public boolean isTerminal() {
+        return this == COMPLETED || this == ABORTED || this == FAILED;
     }
 
-    boolean acceptsWrites() {
+    /** @return whether producer bytes may be accepted */
+    public boolean acceptsWrites() {
         return this == BUFFERING || this == MULTIPART_IN_PROGRESS;
     }
 }
