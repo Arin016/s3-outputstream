@@ -35,7 +35,7 @@ public final class LocalS3Support {
     public static S3Client client(URI endpoint, int retries) {
         return S3Client.builder().endpointOverride(endpoint).region(Region.US_EAST_1)
                 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("local-only", "local-only")))
-                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).chunkedEncodingEnabled(false).build())
+                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).chunkedEncodingEnabled(false).expectContinueEnabled(false).build())
                 .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
                 .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
                 .overrideConfiguration(c -> c.apiCallTimeout(Duration.ofSeconds(60))

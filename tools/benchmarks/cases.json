@@ -1,0 +1,34 @@
+{
+  "protocol_version": 1,
+  "random_seed": 20260906,
+  "defaults": {"warmups": 2, "repetitions": 5, "part_size": 5242880, "chunk": 65536, "known_length": false, "producer_delay_us": 0, "latency_ms": 0, "bandwidth_mib": 0, "async_concurrency": 4, "queue": 1, "retries": 0, "fault": "none", "workload": "bytes", "fail_after": -1},
+  "adapters": ["whole-buffer", "temp-file", "aws-async", "ci-cmg", "original-939f2bd", "improved"],
+  "success": [
+    {"case_id": "empty", "size": 0},
+    {"case_id": "1k-unknown", "size": 1024},
+    {"case_id": "1m-unknown", "size": 1048576},
+    {"case_id": "part-minus-one", "size": 5242879},
+    {"case_id": "exact-part", "size": 5242880},
+    {"case_id": "part-plus-one", "size": 5242881},
+    {"case_id": "32m-unknown", "size": 33554432},
+    {"case_id": "128m-unknown", "size": 134217728},
+    {"case_id": "128m-known", "size": 134217728, "known_length": true},
+    {"case_id": "8m-byte-writes", "size": 8388608, "chunk": 1},
+    {"case_id": "32m-4k-writes", "size": 33554432, "chunk": 4096},
+    {"case_id": "32m-1m-writes", "size": 33554432, "chunk": 1048576},
+    {"case_id": "128m-16m-parts", "size": 134217728, "part_size": 16777216},
+    {"case_id": "32m-slow-producer", "size": 33554432, "producer_delay_us": 1000},
+    {"case_id": "32m-request-latency", "size": 33554432, "latency_ms": 25},
+    {"case_id": "32m-body-delay", "size": 33554432, "bandwidth_mib": 32},
+    {"case_id": "64m-zip-csv", "size": 67108864, "workload": "zip-csv"}
+  ],
+  "failures": [
+    {"case_id": "producer-before-multipart", "size": 12582912, "fault": "producer", "fail_after": 1024},
+    {"case_id": "producer-after-multipart", "size": 12582912, "fault": "producer", "fail_after": 6291456},
+    {"case_id": "transient-part", "size": 12582912, "fault": "transient-part", "retries": 2},
+    {"case_id": "create-failure", "size": 12582912, "fault": "create"},
+    {"case_id": "permanent-part", "size": 12582912, "fault": "permanent-part"},
+    {"case_id": "complete-failure", "size": 12582912, "fault": "complete"},
+    {"case_id": "part-and-abort-failure", "size": 12582912, "fault": "part-and-abort"}
+  ]
+}
