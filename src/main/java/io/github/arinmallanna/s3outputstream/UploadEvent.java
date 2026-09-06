@@ -4,11 +4,23 @@ package io.github.arinmallanna.s3outputstream;
 public final class UploadEvent {
     /** Application lifecycle events; SDK retries are not individual events here. */
     public enum Type {
-        STARTED, MODE_SELECTED, BYTES_WRITTEN, PART_STARTED, PART_COMPLETED,
-        PART_FAILED, COMPLETED, ABORTED, FAILED, CLEANUP_FAILED
+        /** Stream constructed. */ STARTED,
+        /** Single PUT or multipart chosen. */ MODE_SELECTED,
+        /** Producer bytes accepted. */ BYTES_WRITTEN,
+        /** About to upload a part. */ PART_STARTED,
+        /** Part acknowledged. */ PART_COMPLETED,
+        /** Part upload threw. */ PART_FAILED,
+        /** Publication acknowledged. */ COMPLETED,
+        /** Local abort completed or attempted. */ ABORTED,
+        /** Operation failed. */ FAILED,
+        /** Cleanup attempt failed. */ CLEANUP_FAILED
     }
     /** Chosen storage protocol. */
-    public enum Mode { UNDECIDED, SINGLE_PUT, MULTIPART }
+    public enum Mode {
+        /** Buffering before protocol selection. */ UNDECIDED,
+        /** Single object request. */ SINGLE_PUT,
+        /** Multipart protocol. */ MULTIPART
+    }
     private final Type type;
     private final Mode mode;
     private final UploadState state;
@@ -21,18 +33,32 @@ public final class UploadEvent {
         this.type = type; this.mode = mode; this.state = state;
         bytesWritten = written; bytesUploaded = uploaded; partNumber = part; elapsedNanos = elapsed;
     }
-    /** @return event kind */
+    /** Returns event kind.
+     * @return event kind
+     */
     public Type type() { return type; }
-    /** @return selected protocol */
+    /** Returns selected protocol.
+     * @return selected protocol
+     */
     public Mode mode() { return mode; }
-    /** @return local state at event emission */
+    /** Returns local state at event emission.
+     * @return local state at event emission
+     */
     public UploadState state() { return state; }
-    /** @return accepted producer bytes */
+    /** Returns accepted producer bytes.
+     * @return accepted producer bytes
+     */
     public long bytesWritten() { return bytesWritten; }
-    /** @return bytes acknowledged by successful calls */
+    /** Returns bytes acknowledged by successful calls.
+     * @return bytes acknowledged by successful calls
+     */
     public long bytesUploaded() { return bytesUploaded; }
-    /** @return one-based part number, or zero for non-part events */
+    /** Returns one-based part number, or zero for non-part events.
+     * @return one-based part number, or zero for non-part events
+     */
     public int partNumber() { return partNumber; }
-    /** @return nanoseconds since stream construction */
+    /** Returns nanoseconds since stream construction.
+     * @return nanoseconds since stream construction
+     */
     public long elapsedNanos() { return elapsedNanos; }
 }

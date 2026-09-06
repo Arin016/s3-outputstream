@@ -9,6 +9,8 @@ package io.github.arinmallanna.s3outputstream;
 public interface UploadListener {
     /** Allocation-free disabled observer. */
     UploadListener NONE = event -> { };
-    /** @param event immutable scalar snapshot */
+    /** Receives a synchronous progress snapshot.
+     * @param event immutable scalar snapshot
+     */
     void onEvent(UploadEvent event);
 }

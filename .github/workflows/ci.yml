@@ -10,6 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         java: [ 11, 17, 21 ]
     steps:
@@ -19,5 +20,24 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: corretto
-      - name: Build and Test
-        run: ./mvnw verify --no-transfer-progress
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Prepare local S3 fixture
+        run: |
+          python -m venv .local-tools/venv
+          .local-tools/venv/bin/python -m pip install -r tools/local/requirements.txt
+      - name: Verify unit tests, local integration, sources and Javadocs
+        run: .local-tools/venv/bin/python tools/local/run_integration.py --output target/local-evidence
+      - name: Inspect distributable contents
+        run: python tools/release/check_artifacts.py --output target/package-inspection.json
+      - name: Archive verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-${{ matrix.java }}-evidence
+          path: |
+            target/local-evidence/
+            target/package-inspection.json
+            target/*-sources.jar
+            target/*-javadoc.jar

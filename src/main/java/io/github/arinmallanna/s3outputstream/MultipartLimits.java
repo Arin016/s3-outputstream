@@ -12,7 +12,7 @@ public final class MultipartLimits {
     public static final int MAX_PARTS = 10_000;
     private MultipartLimits() { }
 
-    /**
+    /** Computes the fixed-part size policy without allocating a payload.
      * @param length exact final object length in bytes
      * @return minimum supported part size covering that length in at most 10,000 parts
      * @throws IllegalArgumentException if the array-backed policy cannot cover the length
@@ -26,7 +26,10 @@ public final class MultipartLimits {
         return (int) Math.max(MIN_PART_SIZE_BYTES, required);
     }
 
-    /** @param partSize payload buffer bytes @return maximum fixed-part object bytes */
+    /** Computes the fixed-part size policy without allocating a payload.
+     * @param partSize payload buffer bytes
+     * @return maximum fixed-part object bytes
+     */
     public static long capacity(int partSize) {
         validatePartSize(partSize);
         return (long) partSize * MAX_PARTS;

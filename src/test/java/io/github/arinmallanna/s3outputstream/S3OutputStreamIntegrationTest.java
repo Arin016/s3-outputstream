@@ -1,180 +1,119 @@
 package io.github.arinmallanna.s3outputstream;
 
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.*;
 
-import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.DigestOutputStream;
 import java.security.MessageDigest;
-import java.util.Arrays;
-import java.util.Random;
+import java.time.Duration;
+import java.util.*;
 
 /**
- * Integration test — uploads to real S3 and verifies correctness.
- *
- * <p>Requires environment variables:
- * <ul>
- *   <li>{@code S3_TEST_BUCKET} — the S3 bucket to upload to</li>
- *   <li>{@code AWS_PROFILE} (optional) — AWS profile name (defaults to "default")</li>
- *   <li>{@code AWS_REGION} (optional) — AWS region (defaults to "us-east-1")</li>
- * </ul>
- *
- * <p>Usage:
- * <pre>
- * S3_TEST_BUCKET=my-bucket AWS_PROFILE=my-profile \
- *   java -cp target/classes:target/test-classes:... S3OutputStreamIntegrationTest
- * </pre>
+ * Separately authorized real-S3 manual program; never discovered as a JUnit test.
+ * Requires S3_REAL_TEST_AUTHORIZED=YES, S3_TEST_BUCKET, S3_TEST_PREFIX (starting
+ * s3-outputstream-test/), AWS_PROFILE and AWS_REGION. It refuses versioned buckets,
+ * uses a unique run prefix, streams synthetic content and always attempts cleanup.
+ * Do not execute without explicit owner authorization. Console output is sanitized.
  */
-public class S3OutputStreamIntegrationTest {
+public final class S3OutputStreamIntegrationTest {
+    private S3OutputStreamIntegrationTest() { }
 
-    private static final String BUCKET = requireEnv("S3_TEST_BUCKET");
-    private static final String PROFILE = System.getenv().getOrDefault("AWS_PROFILE", "default");
-    private static final String REGION = System.getenv().getOrDefault("AWS_REGION", "us-east-1");
-    private static final String KEY_PREFIX = "test/s3-outputstream-integ/";
-    private static final int PART_SIZE = 5 * 1024 * 1024; // 5 MB
-
-    private static String requireEnv(String name) {
-        String val = System.getenv(name);
-        if (val == null || val.isEmpty()) {
-            System.err.println("ERROR: environment variable " + name + " is required.");
-            System.err.println("Usage: S3_TEST_BUCKET=my-bucket java ... S3OutputStreamIntegrationTest");
+    public static void main(String[] args) {
+        try {
+            run();
+            System.out.println("Real-S3 manual verification: PASS; exact test objects and multipart uploads removed.");
+        } catch (Throwable error) {
+            // SDK messages/stack traces may contain destinations or credential context.
+            System.err.println("Real-S3 manual verification: FAIL (" + error.getClass().getSimpleName()
+                    + "); secondary failures=" + error.getSuppressed().length
+                    + ". Check the explicit gate/configuration and inspect cleanup privately.");
             System.exit(1);
         }
-        return val;
     }
 
-    public static void main(String[] args) throws Exception {
-        S3Client s3 = S3Client.builder()
-                .region(Region.of(REGION))
-                .credentialsProvider(ProfileCredentialsProvider.create(PROFILE))
-                .build();
-
-        System.out.println("=== S3OutputStream Integration Test ===");
-        System.out.println("Bucket: " + BUCKET);
-        System.out.println("Profile: " + PROFILE);
-        System.out.println("Region: " + REGION);
-        System.out.println();
-
-        testSmallUpload(s3);
-        testMultipartUpload(s3);
-        testEmptyUpload(s3);
-
-        System.out.println("\n✅ ALL INTEGRATION TESTS PASSED");
-        s3.close();
+    private static String required(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) throw new IllegalArgumentException("Missing explicit test configuration");
+        return value;
     }
 
-    /**
-     * Test 1: Small file — should use single PutObject path.
-     */
-    private static void testSmallUpload(S3Client s3) throws Exception {
-        String key = KEY_PREFIX + "small-" + System.currentTimeMillis() + ".bin";
-        byte[] data = "Hello from S3OutputStream integration test!".getBytes();
-
-        System.out.print("Test 1: Small upload (PutObject path, " + data.length + " bytes)... ");
-
-        try (S3OutputStream out = S3OutputStream.builder()
-                .s3Client(s3).bucket(BUCKET).key(key).build()) {
-            out.write(data);
+    private static void run() throws Throwable {
+        if (!"YES".equals(System.getenv("S3_REAL_TEST_AUTHORIZED"))) {
+            throw new IllegalStateException("Explicit real-S3 authorization gate is closed");
         }
-
-        // Verify
-        byte[] downloaded = download(s3, key);
-        assertBytesEqual(data, downloaded, "small upload");
-
-        // Cleanup
-        delete(s3, key);
-        System.out.println("PASS ✓");
-    }
-
-    /**
-     * Test 2: Large file — should use multipart upload path (>5MB).
-     */
-    private static void testMultipartUpload(S3Client s3) throws Exception {
-        String key = KEY_PREFIX + "multipart-" + System.currentTimeMillis() + ".bin";
-        // 11 MB — triggers 2 full parts + 1 MB remainder
-        int size = 11 * 1024 * 1024;
-        byte[] data = new byte[size];
-        new Random(42).nextBytes(data); // deterministic random content
-        String expectedMd5 = md5Hex(data);
-
-        System.out.print("Test 2: Multipart upload (" + (size / 1024 / 1024) + " MB, 3 parts)... ");
-
-        try (S3OutputStream out = S3OutputStream.builder()
-                .s3Client(s3).bucket(BUCKET).key(key).partSize(PART_SIZE).build()) {
-            // Write in chunks to simulate real streaming (not one big write)
-            int offset = 0;
-            int chunkSize = 64 * 1024; // 64 KB writes
-            while (offset < data.length) {
-                int len = Math.min(chunkSize, data.length - offset);
-                out.write(data, offset, len);
-                offset += len;
+        String bucket = required("S3_TEST_BUCKET");
+        String prefix = required("S3_TEST_PREFIX");
+        if (!prefix.startsWith("s3-outputstream-test/") || !prefix.endsWith("/") || prefix.length() > 800) {
+            throw new IllegalArgumentException("A dedicated disposable test prefix is required");
+        }
+        String runPrefix = prefix + UUID.randomUUID() + "/";
+        try (ProfileCredentialsProvider credentials = ProfileCredentialsProvider.create(required("AWS_PROFILE"));
+             S3Client client = S3Client.builder().region(Region.of(required("AWS_REGION")))
+                     .credentialsProvider(credentials)
+                     .overrideConfiguration(c -> c.apiCallTimeout(Duration.ofSeconds(60))
+                             .apiCallAttemptTimeout(Duration.ofSeconds(20))
+                             .retryPolicy(RetryPolicy.builder().numRetries(2).build())).build()) {
+            if (client.getBucketVersioning(r -> r.bucket(bucket)).status() != null) {
+                throw new IllegalStateException("Manual test requires a never-versioned disposable bucket");
             }
-            // Verify state before close
-            assert out.getPartsUploaded() == 2 : "expected 2 parts uploaded before close, got " + out.getPartsUploaded();
-        }
-
-        // Download and verify byte-for-byte
-        byte[] downloaded = download(s3, key);
-        String actualMd5 = md5Hex(downloaded);
-        if (!expectedMd5.equals(actualMd5)) {
-            throw new AssertionError("MD5 mismatch! expected=" + expectedMd5 + " actual=" + actualMd5);
-        }
-        assertBytesEqual(data, downloaded, "multipart upload");
-
-        // Cleanup
-        delete(s3, key);
-        System.out.println("PASS ✓ (MD5: " + expectedMd5.substring(0, 8) + "...)");
-    }
-
-    /**
-     * Test 3: Empty write — should produce a 0-byte object.
-     */
-    private static void testEmptyUpload(S3Client s3) throws Exception {
-        String key = KEY_PREFIX + "empty-" + System.currentTimeMillis() + ".bin";
-
-        System.out.print("Test 3: Empty upload (0 bytes)... ");
-
-        try (S3OutputStream out = S3OutputStream.builder()
-                .s3Client(s3).bucket(BUCKET).key(key).build()) {
-            // write nothing
-        }
-
-        byte[] downloaded = download(s3, key);
-        if (downloaded.length != 0) {
-            throw new AssertionError("expected empty object, got " + downloaded.length + " bytes");
-        }
-
-        delete(s3, key);
-        System.out.println("PASS ✓");
-    }
-
-    // ─── Helpers ───────────────────────────────────────────────────────────────
-
-    private static byte[] download(S3Client s3, String key) {
-        ResponseBytes<GetObjectResponse> resp = s3.getObjectAsBytes(
-                GetObjectRequest.builder().bucket(BUCKET).key(key).build());
-        return resp.asByteArray();
-    }
-
-    private static void delete(S3Client s3, String key) {
-        s3.deleteObject(DeleteObjectRequest.builder().bucket(BUCKET).key(key).build());
-    }
-
-    private static void assertBytesEqual(byte[] expected, byte[] actual, String testName) {
-        if (!Arrays.equals(expected, actual)) {
-            throw new AssertionError(testName + ": byte mismatch! expected.length=" +
-                    expected.length + " actual.length=" + actual.length);
+            List<String> keys = new ArrayList<>();
+            Throwable failure = null;
+            try {
+                for (long size : new long[]{0, 1024, 11L * 1024 * 1024}) {
+                    String key = runPrefix + size + ".bin"; keys.add(key);
+                    MessageDigest expected = MessageDigest.getInstance("SHA-256");
+                    generate(new DigestOutputStream(OutputStream.nullOutputStream(), expected), size);
+                    S3OutputStream.upload(S3OutputStream.builder().s3Client(client).bucket(bucket).key(key)
+                            .expectedLength(size).contentType("application/octet-stream"), out -> generate(out, size));
+                    MessageDigest actual = MessageDigest.getInstance("SHA-256"); long received = 0;
+                    try (InputStream in = client.getObject(r -> r.bucket(bucket).key(key))) {
+                        byte[] chunk = new byte[65536]; int n;
+                        while ((n = in.read(chunk)) != -1) { actual.update(chunk, 0, n); received += n; }
+                    }
+                    if (received != size || !Arrays.equals(expected.digest(), actual.digest())) {
+                        throw new AssertionError("Synthetic object length/hash mismatch");
+                    }
+                }
+            } catch (Throwable error) { failure = error; }
+            finally {
+                // Only this run's generated keys/prefix are eligible for cleanup.
+                for (String key : keys) {
+                    try { client.deleteObject(r -> r.bucket(bucket).key(key)); }
+                    catch (Throwable cleanup) { failure = append(failure, cleanup); }
+                }
+                try {
+                    for (ListMultipartUploadsResponse page : client.listMultipartUploadsPaginator(
+                            r -> r.bucket(bucket).prefix(runPrefix))) {
+                        for (MultipartUpload upload : page.uploads()) {
+                            client.abortMultipartUpload(r -> r.bucket(bucket).key(upload.key()).uploadId(upload.uploadId()));
+                        }
+                    }
+                    if (!client.listObjectsV2(r -> r.bucket(bucket).prefix(runPrefix)).contents().isEmpty()
+                            || !client.listMultipartUploads(r -> r.bucket(bucket).prefix(runPrefix)).uploads().isEmpty()) {
+                        throw new AssertionError("Test cleanup incomplete");
+                    }
+                } catch (Throwable cleanup) { failure = append(failure, cleanup); }
+            }
+            if (failure != null) throw failure;
         }
     }
 
-    private static String md5Hex(byte[] data) throws Exception {
-        byte[] hash = MessageDigest.getInstance("MD5").digest(data);
-        StringBuilder sb = new StringBuilder();
-        for (byte b : hash) sb.append(String.format("%02x", b));
-        return sb.toString();
+    private static Throwable append(Throwable primary, Throwable secondary) {
+        if (primary == null) return secondary;
+        if (secondary != primary) primary.addSuppressed(secondary);
+        return primary;
+    }
+
+    private static void generate(OutputStream out, long size) throws java.io.IOException {
+        Random random = new Random(42); byte[] chunk = new byte[65536];
+        for (long written = 0; written < size;) {
+            random.nextBytes(chunk); int n = (int) Math.min(chunk.length, size - written);
+            out.write(chunk, 0, n); written += n;
+        }
     }
 }

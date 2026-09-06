@@ -13,12 +13,16 @@ public enum UploadState {
     /** An operation failed; remote publication or cleanup may be uncertain. Terminal. */
     FAILED;
 
-    /** @return whether no further writes or publication attempts are allowed */
+    /** Returns whether no further writes or publication attempts are allowed.
+     * @return whether no further writes or publication attempts are allowed
+     */
     public boolean isTerminal() {
         return this == COMPLETED || this == ABORTED || this == FAILED;
     }
 
-    /** @return whether producer bytes may be accepted */
+    /** Returns whether producer bytes may be accepted.
+     * @return whether producer bytes may be accepted
+     */
     public boolean acceptsWrites() {
         return this == BUFFERING || this == MULTIPART_IN_PROGRESS;
     }

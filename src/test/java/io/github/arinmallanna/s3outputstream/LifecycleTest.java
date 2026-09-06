@@ -242,6 +242,43 @@ class LifecycleTest {
         out.commit(); assertEquals(1, snapshot.size()); assertTrue(out.getCompletedParts().isEmpty());
     }
 
+    @Test void fatalObserversCannotReplaceStorageAndCleanupFailures() throws Exception {
+        RecordingStore store = new RecordingStore(); store.failAt = "part"; store.failAbort = true;
+        AssertionError observer = new AssertionError("observer");
+        S3OutputStream out = builder(store).listener(event -> {
+            if (event.type() == UploadEvent.Type.PART_FAILED || event.type() == UploadEvent.Type.CLEANUP_FAILED
+                    || event.type() == UploadEvent.Type.FAILED) throw observer;
+        }).build();
+        S3UploadException actual = assertThrows(S3UploadException.class, () -> out.write(new byte[P + 1]));
+        assertSame(store.primary, actual.getCause());
+        assertArrayEquals(new Throwable[]{observer}, store.primary.getSuppressed());
+        assertArrayEquals(new Throwable[]{observer}, store.cleanupFailure.getSuppressed());
+        assertArrayEquals(new Throwable[]{store.cleanupFailure, observer}, actual.getSuppressed());
+        assertEquals(1, store.aborts); assertTerminalReleased(out);
+    }
+
+    @Test void fatalAbortObserverPreservesCleanupCauseAndReleasesState() throws Exception {
+        RecordingStore store = new RecordingStore(); store.failAbort = true;
+        AssertionError observer = new AssertionError("observer");
+        S3OutputStream out = builder(store).listener(event -> {
+            if (event.type() == UploadEvent.Type.ABORTED) throw observer;
+        }).build();
+        out.write(new byte[P + 1]);
+        S3UploadException actual = assertThrows(S3UploadException.class, out::abort);
+        assertSame(store.cleanupFailure, actual.getCause());
+        assertArrayEquals(new Throwable[]{observer}, actual.getCause().getSuppressed());
+        out.close(); assertEquals(1, store.aborts); assertTerminalReleased(out);
+    }
+
+    @Test void receiptsRejectInvalidProtocolValues() {
+        for (int number : new int[]{0, -1, 10001}) {
+            assertThrows(IllegalArgumentException.class, () -> new CompletedPartInfo(number, "receipt"));
+        }
+        assertThrows(IllegalArgumentException.class, () -> new CompletedPartInfo(1, ""));
+        assertThrows(NullPointerException.class, () -> new CompletedPartInfo(1, null));
+        assertEquals(10000, new CompletedPartInfo(10000, "receipt").partNumber());
+    }
+
     @Test void validationAndMetadataDefensiveCopy() {
         RecordingStore store = new RecordingStore();
         assertThrows(IllegalArgumentException.class, () -> builder(store).bucket("  ").build());

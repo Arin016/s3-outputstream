@@ -36,6 +36,7 @@
         <maven.compiler.release>11</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <aws.sdk.version>2.47.3</aws.sdk.version>
+        <project.build.outputTimestamp>2026-09-06T00:00:00Z</project.build.outputTimestamp>
     </properties>
 
     <dependencyManagement>
@@ -79,6 +80,13 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource><directory>src/main/resources</directory></resource>
+            <resource>
+                <directory>${project.basedir}</directory><targetPath>META-INF</targetPath>
+                <includes><include>LICENSE</include><include>NOTICE</include></includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -89,6 +97,30 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration><archive><manifestEntries>
+                    <Automatic-Module-Name>io.github.arinmallanna.s3outputstream</Automatic-Module-Name>
+                </manifestEntries></archive></configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions><execution><id>sources</id><goals><goal>jar-no-fork</goal></goals></execution></executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.11.2</version>
+                <configuration>
+                    <doclint>all</doclint><failOnWarnings>true</failOnWarnings>
+                    <notimestamp>true</notimestamp>
+                </configuration>
+                <executions><execution><id>javadoc</id><goals><goal>jar</goal></goals></execution></executions>
             </plugin>
         </plugins>
     </build>

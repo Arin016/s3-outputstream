@@ -198,34 +198,51 @@ public final class S3OutputStream extends OutputStream {
         if (state.isTerminal()) return;
         state = UploadState.ABORTED;
         Throwable cleanupFailure = cleanup();
-        emit(UploadEvent.Type.ABORTED, 0);
+        if (cleanupFailure == null) emit(UploadEvent.Type.ABORTED, 0);
+        else emitWithPrimary(UploadEvent.Type.ABORTED, 0, cleanupFailure);
         if (cleanupFailure instanceof Error) throw (Error) cleanupFailure;
         if (cleanupFailure != null) {
             throw new S3UploadException(bucket, key, "multipart cleanup failed", cleanupFailure);
         }
     }
 
-    /** @return total bytes accepted, including bytes accepted before failure */
+    /** Returns total bytes accepted, including bytes accepted before failure.
+     * @return total bytes accepted, including bytes accepted before failure
+     */
     public long getTotalBytesWritten() { return totalBytesWritten; }
-    /** @return bytes acknowledged by successful PutObject/UploadPart calls */
+    /** Returns bytes acknowledged by successful PutObject/UploadPart calls.
+     * @return bytes acknowledged by successful PutObject/UploadPart calls
+     */
     public long getTotalBytesUploaded() { return totalBytesUploaded; }
-    /** @return successful multipart part count, retained after terminal cleanup */
+    /** Returns successful multipart part count, retained after terminal cleanup.
+     * @return successful multipart part count, retained after terminal cleanup
+     */
     public int getPartsUploaded() { return partsUploaded; }
-    /**
+    /** Returns snapshot of acknowledged parts while open; empty after terminal cleanup.
      * @return snapshot of acknowledged parts while open; empty after terminal cleanup
      */
     public List<CompletedPartInfo> getCompletedParts() {
         return Collections.unmodifiableList(new ArrayList<>(completedParts));
     }
-    /** @return local lifecycle state; failure/abort does not prove remote absence */
+    /** Returns local lifecycle state; failure/abort does not prove remote absence.
+     * @return local lifecycle state; failure/abort does not prove remote absence
+     */
     public UploadState getState() { return state; }
-    /** @return configured application payload-buffer size in bytes */
+    /** Returns configured application payload-buffer size in bytes.
+     * @return configured application payload-buffer size in bytes
+     */
     public int getPartSize() { return partSize; }
-    /** @return maximum accepted object size in bytes with this fixed part size */
+    /** Returns maximum accepted object size in bytes with this fixed part size.
+     * @return maximum accepted object size in bytes with this fixed part size
+     */
     public long getMaximumObjectSize() { return capacity; }
-    /** @return currently retained payload-buffer bytes (zero after termination) */
+    /** Returns currently retained payload-buffer bytes (zero after termination).
+     * @return currently retained payload-buffer bytes (zero after termination)
+     */
     public int getRetainedBufferBytes() { return buffer == null ? 0 : buffer.length; }
-    /** @return number of isolated listener RuntimeExceptions */
+    /** Returns number of isolated listener RuntimeExceptions.
+     * @return number of isolated listener RuntimeExceptions
+     */
     public long getListenerFailures() { return listenerFailures; }
 
     private void prepareWrite(int length) throws IOException {
@@ -263,7 +280,7 @@ public final class S3OutputStream extends OutputStream {
             position = 0;
             emit(UploadEvent.Type.PART_COMPLETED, partNumber);
         } catch (Exception e) {
-            emit(UploadEvent.Type.PART_FAILED, partNumber);
+            emitWithPrimary(UploadEvent.Type.PART_FAILED, partNumber, e);
             throw e;
         }
     }
@@ -274,7 +291,7 @@ public final class S3OutputStream extends OutputStream {
             state = UploadState.FAILED;
             Throwable secondary = cleanup();
             if (secondary != null && secondary != cause) primary.addSuppressed(secondary);
-            emit(UploadEvent.Type.FAILED, 0);
+            emitWithPrimary(UploadEvent.Type.FAILED, 0, primary);
         }
         return primary;
     }
@@ -296,7 +313,7 @@ public final class S3OutputStream extends OutputStream {
         } finally {
             release();
         }
-        if (failure != null) emit(UploadEvent.Type.CLEANUP_FAILED, 0);
+        if (failure != null) emitWithPrimary(UploadEvent.Type.CLEANUP_FAILED, 0, failure);
         return failure;
     }
 
@@ -333,6 +350,17 @@ public final class S3OutputStream extends OutputStream {
             listenerFailures++;
         } finally {
             notifying = false;
+        }
+    }
+
+    // A fatal observer error must not replace an already established storage or
+    // cleanup failure while reporting that failure. Normal observer Errors still
+    // propagate; this is causality preservation, not general Error recovery.
+    private void emitWithPrimary(UploadEvent.Type type, int partNumber, Throwable primary) {
+        try {
+            emit(type, partNumber);
+        } catch (Error observerError) {
+            if (observerError != primary) primary.addSuppressed(observerError);
         }
     }
 
@@ -375,7 +403,9 @@ public final class S3OutputStream extends OutputStream {
         }
     }
 
-    /** @return a new mutable builder; builders are not thread-safe */
+    /** Returns a new mutable builder; builders are not thread-safe.
+     * @return a new mutable builder; builders are not thread-safe
+     */
     public static Builder builder() { return new Builder(); }
 
     /** Validated construction; the client remains owned by the caller. */
@@ -392,16 +422,25 @@ public final class S3OutputStream extends OutputStream {
         private Map<String, String> metadata = Collections.emptyMap();
 
         private Builder() { }
-        /** @param client synchronous S3 client @return this builder */
+        /** Configures this upload before construction.
+     * @param client synchronous S3 client
+     * @return this builder
+     */
         public Builder s3Client(S3Client client) { s3Client = Objects.requireNonNull(client); return this; }
-        /** @param value destination bucket @return this builder */
+        /** Configures this upload before construction.
+     * @param value destination bucket
+     * @return this builder
+     */
         public Builder bucket(String value) { bucket = value; return this; }
-        /** @param value destination key @return this builder */
+        /** Configures this upload before construction.
+     * @param value destination key
+     * @return this builder
+     */
         public Builder key(String value) { key = value; return this; }
-        /**
-         * @param bytes fixed payload buffer size (default 5 MiB, or chosen for expectedLength)
-         * @return this builder
-         */
+        /** Configures this upload before construction.
+     * @param bytes fixed payload buffer size (default 5 MiB, or chosen for expectedLength)
+     * @return this builder
+     */
         public Builder partSize(int bytes) { partSize = bytes; return this; }
         /**
          * Declares the exact final serialized length, not an estimate. Overrun and
@@ -414,25 +453,34 @@ public final class S3OutputStream extends OutputStream {
             if (bytes < 0) throw new IllegalArgumentException("expectedLength must be nonnegative");
             expectedLength = bytes; return this;
         }
-        /**
-         * @param enabled true restores legacy publication on close, even after producer failure
-         * @return this builder
-         */
+        /** Configures this upload before construction.
+     * @param enabled true restores legacy publication on close, even after producer failure
+     * @return this builder
+     */
         public Builder autoCommitOnClose(boolean enabled) { autoCommitOnClose = enabled; return this; }
-        /** @param value observer; RuntimeExceptions are counted and isolated @return this builder */
+        /** Configures this upload before construction.
+     * @param value observer; RuntimeExceptions are counted and isolated
+     * @return this builder
+     */
         public Builder listener(UploadListener value) { listener = Objects.requireNonNull(value); return this; }
-        /** @param value nonblank object MIME type @return this builder */
+        /** Configures this upload before construction.
+     * @param value nonblank object MIME type
+     * @return this builder
+     */
         public Builder contentType(String value) {
             if (value == null || value.isBlank()) throw new IllegalArgumentException("contentType must not be blank");
             contentType = value; return this;
         }
-        /** @param value object user metadata, defensively copied @return this builder */
+        /** Configures this upload before construction.
+     * @param value object user metadata, defensively copied
+     * @return this builder
+     */
         public Builder metadata(Map<String, String> value) { metadata = Map.copyOf(value); return this; }
         Builder uploadStrategy(UploadStrategy strategy) { uploadStrategy = Objects.requireNonNull(strategy); return this; }
-        /**
-         * @return a new open upload
-         * @throws IllegalArgumentException if required fields or size policy are invalid
-         */
+        /** Returns a new open upload.
+     * @return a new open upload
+     * @throws IllegalArgumentException if required fields or size policy are invalid
+     */
         public S3OutputStream build() { return build(autoCommitOnClose); }
 
         private S3OutputStream build(boolean automaticCommit) {
