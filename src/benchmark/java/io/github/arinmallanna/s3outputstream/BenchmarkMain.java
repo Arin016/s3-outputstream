@@ -68,7 +68,8 @@ public final class BenchmarkMain {
         if (config.adapter.equals("aws-async")) {
             async = S3AsyncClient.builder().endpointOverride(endpoint).region(Region.US_EAST_1)
                     .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("local-only", "local-only")))
-                    .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).chunkedEncodingEnabled(false).expectContinueEnabled(false).build())
+                    .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true)
+                            .chunkedEncodingEnabled(config.knownLength).expectContinueEnabled(false).build())
                     .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
                     .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
                     .httpClientBuilder(NettyNioAsyncHttpClient.builder().maxConcurrency(config.asyncConcurrency))
@@ -149,6 +150,7 @@ public final class BenchmarkMain {
             row.put("fixture_body_delay_mib_per_second_per_request", config.bandwidthMib);
             row.put("ci_cmg_queue_size", config.queue); row.put("async_http_max_concurrency", config.asyncConcurrency);
             row.put("async_api_call_buffer_bytes", 4L * config.partSize); row.put("sdk_retries", config.retries);
+            row.put("async_chunked_encoding_enabled", config.adapter.equals("aws-async") && config.knownLength);
             row.put("fault", config.fault); row.put("failure_after_input_bytes", config.failAfter);
             row.put("elapsed_ns", elapsed);
             row.put("first_storage_request_ns", requestClock.delta(requestClock.firstRequest));

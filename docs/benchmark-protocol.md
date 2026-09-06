@@ -103,3 +103,26 @@ online guide's implicit enablement yielded a misconfigured smoke case. After
 enablement, the local HTTP fixture's interim 100 response was interpreted as an
 error by the async path. Disabling Expect consistently is part of the frozen
 fixture configuration; initial diagnostic runs are retained and excluded.
+
+Post-run correction, 2026-09-06: the original 102-block sweep is retained intact.
+Its known-length AWS async block failed locally because disabling chunked signing
+on a non-replayable, known-length HTTP body left no payload hash. Enabling chunked
+encoding for that adapter's known-length path produced seven hash-correct 128 MiB
+uploads in a diagnostic. A separately labeled supplement repeats known/unknown
+32/128 MiB comparisons with that correction; its rows are never pooled into the
+original sweep. Other adapters retain their original transport configuration.
+The correction is recorded by `async_chunked_encoding_enabled` in new raw rows.
+The failure sweep uses unknown lengths, so its transport remains the original
+configuration. The original invalid AWS known-length block is configuration
+evidence, not evidence of an inherent AWS failure or a performance disadvantage.
+
+The original desktop session ended after 74 blocks. Resumption verified every
+original recorded source/POM hash, preserved the interrupted block separately and
+continued the saved randomized order. `resume.json` and the archived resume script
+record this break; no completed observations were replaced.
+
+After the original sweep, additional receipt validation and preservation of
+primary failures against listener Errors were added. These affect invalid/error
+paths only. The supplement and failure sweep use the strengthened candidate;
+source manifests distinguish both revisions. This is engineering evaluation,
+with no statistical significance or research novelty claim.
