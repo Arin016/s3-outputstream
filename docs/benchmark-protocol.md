@@ -126,3 +126,20 @@ primary failures against listener Errors were added. These affect invalid/error
 paths only. The supplement and failure sweep use the strengthened candidate;
 source manifests distinguish both revisions. This is engineering evaluation,
 with no statistical significance or research novelty claim.
+
+Retry supplement: the initial fault sweep showed that the raw AWS blocking body
+cannot resubscribe a split part after the injected 503. SDK 2.47.3 already provides
+`BufferedSplittableAsyncRequestBody`. A further explicitly labeled AWS-only
+supplement uses `--aws-retry-buffer`, wrapping the body with `bufferBeforeSend(true)`
+while keeping the same four-part API buffer. Repeat all seven fault scenarios
+(three forks each) and 32/128 MiB unknown plus 128 MiB known success cases (two
+warmups/five repetitions). Report it separately; do not imply that AWS lacks a
+retry-capable option or compare the unwrapped configuration as its only option.
+
+Cleanup-observation correction: one retry-buffer AWS failure run showed an abort
+racing the harness's early fault reset. The harness now keeps faults active through
+HEAD/GET/list observation, then resets them only for administrative cleanup. The
+original fault sweeps remain diagnostic evidence; both the full six-adapter fault
+sweep and the retry-buffer AWS fault sweep are repeated under this correction and
+used as the final failure evidence. Success timing/code paths are unaffected.
+Orphan counts remain observations after API return, not proofs of perpetual absence.

@@ -26,7 +26,7 @@ jobs:
       - name: Prepare local S3 fixture
         run: |
           python -m venv .local-tools/venv
-          .local-tools/venv/bin/python -m pip install -r tools/local/requirements.txt
+          .local-tools/venv/bin/python -m pip install -r tools/local/requirements.lock
       - name: Verify unit tests, local integration, sources and Javadocs
         run: .local-tools/venv/bin/python tools/local/run_integration.py --output target/local-evidence
       - name: Inspect distributable contents

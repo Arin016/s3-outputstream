@@ -173,6 +173,8 @@ def main():
     p.add_argument('--success', type=Path, required=True)
     p.add_argument('--failures', type=Path)
     p.add_argument('--supplement', type=Path)
+    p.add_argument('--retry-success', type=Path)
+    p.add_argument('--retry-failures', type=Path)
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -200,8 +202,11 @@ def main():
         text += ['## Fault outcomes', '', '| Case | Adapter | Forks | Timeouts | Full / partial / absent objects | Orphan uploads |',
                  '|---|---|---:|---:|---:|---:|']
         for r in faults:
+            visibility = (f'{r["correct_full_objects"]} / {r["partial_objects"]} / {r["absent_objects"]}'
+                          if r['result_rows'] else 'NA (no result)')
+            orphans = r['orphan_uploads'] if r['result_rows'] else 'NA'
             text.append(f'| {r["case_id"]} | {r["adapter"]} | {r["forks"]} | {r["timeouts"]} | '
-                        f'{r["correct_full_objects"]} / {r["partial_objects"]} / {r["absent_objects"]} | {r["orphan_uploads"]} |')
+                        f'{visibility} | {orphans} |')
         text += ['', 'Visibility is unknown for timed-out runs. A destroyed disposable fixture is harness cleanup, '
                  'not adapter cleanup. Multipart-operation faults are unexercised for whole-buffer/temp-file single PUTs.', '']
     if args.supplement:
@@ -210,8 +215,27 @@ def main():
         text += ['## Separately configured supplement', '',
                  'These measurements use the supplemental manifest configuration and are not pooled with the original protocol.', '',
                  table(supplement, list(dict.fromkeys(r['case_id'] for r in supplement))), '']
+    if args.retry_success:
+        retry = summarize(read_rows(args.retry_success))
+        write_csv(args.output / 'aws-retry-success-summary.csv', retry)
+        text += ['## AWS buffered retry option: separate success supplement', '',
+                 'BufferedSplittableAsyncRequestBody with bufferBeforeSend=true, same four-part API buffer.', '',
+                 table(retry, list(dict.fromkeys(r['case_id'] for r in retry))), '']
+    if args.retry_failures:
+        retry_faults = fault_summary(args.retry_failures)
+        write_csv(args.output / 'aws-retry-failure-summary.csv', retry_faults)
+        text += ['## AWS buffered retry option: separate fault supplement', '',
+                 '| Case | Forks | Timeouts | Full / partial / absent objects | Orphan uploads |',
+                 '|---|---:|---:|---:|---:|']
+        for r in retry_faults:
+            visibility = (f'{r["correct_full_objects"]} / {r["partial_objects"]} / {r["absent_objects"]}'
+                          if r['result_rows'] else 'NA')
+            text.append(f'| {r["case_id"]} | {r["forks"]} | {r["timeouts"]} | {visibility} | '
+                        f'{r["orphan_uploads"] if r["result_rows"] else "NA"} |')
+        text += ['', 'No pooling with the unwrapped AWS body. Keep the final fault-observation protocol active through inspection.', '']
     (args.output / 'REPORT.md').write_text('\n'.join(text))
     sources = [args.success] + ([args.failures] if args.failures else []) + ([args.supplement] if args.supplement else [])
+    sources += ([args.retry_success] if args.retry_success else []) + ([args.retry_failures] if args.retry_failures else [])
     manifest = {'analysis_script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                 'method': 'median; inclusive quartiles; only correct successes in performance summaries; no pooling of supplement',
                 'inputs': {str(path): hashlib.sha256(path.read_bytes()).hexdigest()

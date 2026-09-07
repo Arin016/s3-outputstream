@@ -116,6 +116,8 @@ def main():
     parser.add_argument('--cases', default='')
     parser.add_argument('--java-home', default=os.environ.get('JAVA_HOME', ''))
     parser.add_argument('--timeout', type=int, default=180)
+    parser.add_argument('--aws-retry-buffer', action='store_true',
+                        help='Supplement: wrap AWS blocking body in BufferedSplittableAsyncRequestBody, bufferBeforeSend=true')
     args = parser.parse_args()
     if args.output.exists() and any(args.output.iterdir()):
         raise SystemExit('Refusing to overwrite an existing evidence directory')
@@ -139,6 +141,7 @@ def main():
         for adapter in adapters:
             for fork in range(3 if args.suite == 'failures' else 1):
                 params = dict(protocol['defaults'], **case, adapter=adapter, fork=fork)
+                params['aws_retry_buffer'] = args.aws_retry_buffer
                 if args.suite == 'smoke':
                     params.update(warmups=1, repetitions=1)
                 elif args.suite == 'failures':

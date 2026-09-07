@@ -7,6 +7,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.async.BlockingOutputStreamAsyncRequestBody;
+import software.amazon.awssdk.core.async.BufferedSplittableAsyncRequestBody;
 import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.interceptor.Context;
@@ -151,6 +152,7 @@ public final class BenchmarkMain {
             row.put("ci_cmg_queue_size", config.queue); row.put("async_http_max_concurrency", config.asyncConcurrency);
             row.put("async_api_call_buffer_bytes", 4L * config.partSize); row.put("sdk_retries", config.retries);
             row.put("async_chunked_encoding_enabled", config.adapter.equals("aws-async") && config.knownLength);
+            row.put("async_retry_buffer_enabled", config.adapter.equals("aws-async") && config.awsRetryBuffer);
             row.put("fault", config.fault); row.put("failure_after_input_bytes", config.failAfter);
             row.put("elapsed_ns", elapsed);
             row.put("first_storage_request_ns", requestClock.delta(requestClock.firstRequest));
@@ -169,7 +171,6 @@ public final class BenchmarkMain {
             row.put("root_error_type", failure == null ? "" : root(failure).getClass().getName());
             row.put("suppressed_errors", failure == null ? 0 : failure.getSuppressed().length);
             // Verification/administrative cleanup are outside upload time and request counts.
-            LocalS3Support.configure(endpoint, "{}");
             boolean present = false; String actualHash = ""; long actualSize = -1;
             try {
                 HeadObjectResponse head = sync.headObject(r -> r.bucket(LocalS3Support.BUCKET).key(key));
@@ -186,6 +187,10 @@ public final class BenchmarkMain {
             row.put("expected_sha256", expectedHash); row.put("actual_sha256", actualHash);
             row.put("hash_matches_expected", present && expectedHash.equals(actualHash));
             row.put("orphan_uploads_before_harness_cleanup", ownOrphans);
+            // Keep faults active through outcome observation: an async adapter may
+            // issue its abort after its completion future fails. Clearing faults
+            // earlier could accidentally make that delayed abort succeed.
+            LocalS3Support.configure(endpoint, "{}");
             for (MultipartUpload orphan : orphans) {
                 if (key.equals(orphan.key())) sync.abortMultipartUpload(r -> r.bucket(LocalS3Support.BUCKET).key(key).uploadId(orphan.uploadId()));
             }
@@ -243,7 +248,9 @@ public final class BenchmarkMain {
             try (edu.colorado.cires.cmg.s3out.S3OutputStream sink = out) { produce(sink, true, true); sink.done(); }
         } else if (config.adapter.equals("aws-async")) {
             BlockingOutputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingOutputStream(config.knownLength ? config.size : null);
-            CompletableFuture<PutObjectResponse> future = async.putObject(r -> r.bucket(LocalS3Support.BUCKET).key(key), body);
+            AsyncRequestBody requestBody = config.awsRetryBuffer ? BufferedSplittableAsyncRequestBody.builder()
+                    .asyncRequestBody(body).bufferBeforeSend(true).build() : body;
+            CompletableFuture<PutObjectResponse> future = async.putObject(r -> r.bucket(LocalS3Support.BUCKET).key(key), requestBody);
             CancellableOutputStream out = body.outputStream();
             try {
                 produce(out, true, true); out.close(); future.get(35, TimeUnit.SECONDS);
@@ -383,7 +390,7 @@ public final class BenchmarkMain {
         long size, failAfter, producerDelayUs;
         int partSize, chunk, repetitions, warmups, latencyMs, queue, asyncConcurrency, retries;
         double bandwidthMib;
-        boolean knownLength;
+        boolean knownLength, awsRetryBuffer;
         Config(String[] args) throws IOException {
             Properties p = new Properties(); try (Reader reader = Files.newBufferedReader(Path.of(args[0]))) { p.load(reader); }
             endpoint = p.getProperty("endpoint"); adapter = p.getProperty("adapter"); caseId = p.getProperty("case_id");
@@ -395,6 +402,7 @@ public final class BenchmarkMain {
             latencyMs = Integer.parseInt(p.getProperty("latency_ms", "0")); queue = Integer.parseInt(p.getProperty("queue", "1"));
             asyncConcurrency = Integer.parseInt(p.getProperty("async_concurrency", "4")); retries = Integer.parseInt(p.getProperty("retries", "0"));
             bandwidthMib = Double.parseDouble(p.getProperty("bandwidth_mib", "0")); knownLength = Boolean.parseBoolean(p.getProperty("known_length", "false"));
+            awsRetryBuffer = Boolean.parseBoolean(p.getProperty("aws_retry_buffer", "false"));
             if (chunk < 1 || size < 0 || partSize < 5 * MIB || partSize % MIB != 0 || (knownLength && !workload.equals("bytes"))) throw new IllegalArgumentException("Invalid benchmark configuration");
         }
         String fixtureJson() {
