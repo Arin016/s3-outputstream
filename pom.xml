@@ -36,11 +36,37 @@
         <maven.compiler.release>11</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <aws.sdk.version>2.47.3</aws.sdk.version>
+        <netty.version>4.1.137.Final</netty.version>
+        <httpclient5.version>5.6.3</httpclient5.version>
+        <httpcore5.version>5.4.3</httpcore5.version>
         <project.build.outputTimestamp>2026-09-06T00:00:00Z</project.build.outputTimestamp>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Local build/test policy; applications supplying S3Client own their dependency policy. -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.client5</groupId>
+                <artifactId>httpclient5</artifactId>
+                <version>${httpclient5.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.core5</groupId>
+                <artifactId>httpcore5</artifactId>
+                <version>${httpcore5.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.core5</groupId>
+                <artifactId>httpcore5-h2</artifactId>
+                <version>${httpcore5.version}</version>
+            </dependency>
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
