@@ -21,6 +21,11 @@ It is a local artifact, not a publication receipt. Source snapshots preserve all
 selected executable inputs; some intermediate untracked README bytes are unavailable
 and explicitly recorded. Home paths and fixture ports are redacted in the bundle.
 
+The bundle was frozen before the final article-writing pass; its writing-status
+metadata is historical. Current article status and validation are in
+[ARTICLE_REVIEW.md](ARTICLE_REVIEW.md), with the current claim ledger alongside
+this report. Raw measurements and the archive checksum remain unchanged.
+
 Interpretation matters:
 
 - The original success sweep has 714 rows, including 204 warmups and 510 measured

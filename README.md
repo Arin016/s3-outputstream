@@ -195,7 +195,7 @@ for an async client, and
 queued upload and an explicit success option. This project is a compact synchronous
 choice; it is not the first or only S3 OutputStream.
 
-The [technical article draft](docs/article.md) and [benchmark report](docs/benchmark-results.md)
+The [engineering article](docs/article.md), ready for author review, and [benchmark report](docs/benchmark-results.md)
 explain the evaluated trade-offs and limitations. Internal export-system anecdotes
 are not measurements of this public SDK. A public comment in
 [AWS issue 3128](https://github.com/aws/aws-sdk-java-v2/issues/3128#issuecomment-4684884362)

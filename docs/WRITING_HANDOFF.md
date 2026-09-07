@@ -1,8 +1,15 @@
 # Final engineering-article writing handoff
 
+**Completed, September 8, 2026:** Arin switched models and asked to continue.
+The writing pass is complete. [article.md](article.md) is ready for author review;
+code/examples, quantitative claims and local links have been checked. See
+[ARTICLE_REVIEW.md](ARTICLE_REVIEW.md). Author approval and public distribution
+remain pending. The original writing instructions below are retained as a record
+of this completed pass, not an outstanding model-switch request.
+
 Prepared September 8, 2026. Arin requested technical completion and notification
-before final writing so he can switch to Astra extra-high. Keep `article.md` as a
-draft until that pass. Do not start a paper, manuscript or venue search.
+before final writing so he could switch to Astra extra-high. The article remained
+a draft during preparation. No paper, manuscript or venue search was started.
 
 The technical foundation is complete: checkpoint `8f41160`, 75 unit plus 16 local
 integration invocations passing per Java 11/17/21, strict Javadocs, packaging,
