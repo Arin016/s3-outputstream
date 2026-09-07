@@ -1,0 +1,8 @@
+case_id,adapter,forks,result_rows,timeouts,fault_observed_in_result_rows,returned_success,correct_full_objects,partial_objects,absent_objects,orphan_uploads,verified_harness_cleanups,note
+complete-failure,aws-async,3,3,0,3,0,0,0,3,0,3,Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.
+create-failure,aws-async,3,3,0,3,0,0,0,3,0,3,Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.
+part-and-abort-failure,aws-async,3,3,0,3,0,0,0,3,3,3,Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.
+permanent-part,aws-async,3,3,0,3,0,0,0,3,0,3,Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.
+producer-after-multipart,aws-async,3,3,0,3,0,0,0,3,0,3,Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.
+producer-before-multipart,aws-async,3,3,0,3,0,0,0,3,0,3,Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.
+transient-part,aws-async,3,3,0,3,3,3,0,0,0,3,Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.

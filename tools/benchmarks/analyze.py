@@ -124,12 +124,12 @@ def fault_summary(folder):
         result.append({'case_id': case, 'adapter': adapter, 'forks': len(jobs),
                        'result_rows': len(rs), 'timeouts': sum(o['timed_out'] for o in jobs),
                        'fault_observed_in_result_rows': faults_exercised,
-                       'returned_success': sum(r['upload_returned_success'] for r in rs),
-                       'correct_full_objects': sum(r['hash_matches_expected'] for r in rs),
-                       'partial_objects': sum(r['object_present'] and not r['hash_matches_expected'] for r in rs),
-                       'absent_objects': sum(not r['object_present'] for r in rs),
-                       'orphan_uploads': sum(r['orphan_uploads_before_harness_cleanup'] for r in rs),
-                       'verified_harness_cleanups': sum(r['harness_cleanup_verified'] for r in rs),
+                       'returned_success': sum(r['upload_returned_success'] for r in rs) if rs else '',
+                       'correct_full_objects': sum(r['hash_matches_expected'] for r in rs) if rs else '',
+                       'partial_objects': sum(r['object_present'] and not r['hash_matches_expected'] for r in rs) if rs else '',
+                       'absent_objects': sum(not r['object_present'] for r in rs) if rs else '',
+                       'orphan_uploads': sum(r['orphan_uploads_before_harness_cleanup'] for r in rs) if rs else '',
+                       'verified_harness_cleanups': sum(r['harness_cleanup_verified'] for r in rs) if rs else '',
                        'note': 'Timeout visibility and cleanup unknown; isolated fixture destroyed. Multipart faults do not exercise single-PUT adapters.'})
     return result
 

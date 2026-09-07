@@ -143,3 +143,12 @@ original fault sweeps remain diagnostic evidence; both the full six-adapter faul
 sweep and the retry-buffer AWS fault sweep are repeated under this correction and
 used as the final failure evidence. Success timing/code paths are unaffected.
 Orphan counts remain observations after API return, not proofs of perpetual absence.
+
+Post-evaluation dependency update, 2026-09-07: the final candidate retains SDK
+2.47.3 and pins Netty 4.1.137.Final, HttpClient 5.6.3 and HttpCore 5.4.3 after
+advisory review. The original measured dependency hashes are retained. Separate
+validation repeats the 128 MiB unknown-length case across all six adapters, the
+AWS buffered-retry 128 MiB known/unknown cases, and its seven fault scenarios.
+The local Java 11/17/21 matrix is also repeated. These new results do not silently
+replace or pool with historical performance observations. Use each dataset's POM,
+source snapshot and dependency manifest when reconstructing its configuration.

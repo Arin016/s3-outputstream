@@ -20,12 +20,15 @@ def main():
     for folder in sorted((root/'raw').glob('*java-matrix*')):
         files.extend(p for p in folder.rglob('*') if p.is_file() and p.suffix in ['.json','.xml','.txt'])
     files.extend(p for p in (root/'analysis').rglob('*') if p.is_file())
+    files.extend(p for p in (root/'raw/source-snapshots').rglob('*') if p.is_file())
+    files.extend(p for p in (root/'raw').glob('dependency-*.json') if p.is_file())
     for name in ['baseline-939f2bd-20260905.txt','baseline-environment.txt','baseline-manifest.json',
                  'producer-regression-red.txt','example-compilation.json','dependency-osv-20260906.json',
                  'dependency-advisory-details-20260906.json','dependency-osv-patched-20260906.json']:
         f=root/'raw'/name
         if f.exists():files.append(f)
-    for name in ['BENCHMARK_REGISTRY.csv','CLAIMS_EVIDENCE.csv','BENCHMARK_PROTOCOL.md','RELEASE_EVIDENCE.md']:
+    for name in ['BENCHMARK_REGISTRY.csv','CLAIMS_EVIDENCE.csv','BENCHMARK_PROTOCOL.md','RELEASE_EVIDENCE.md',
+                 'SOURCE_PROVENANCE.md']:
         f=root/name
         if f.exists():files.append(f)
     entries={};index={}
