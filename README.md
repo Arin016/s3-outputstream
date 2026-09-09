@@ -183,12 +183,18 @@ The default Maven suite has no S3 network access. See
 [local integration instructions](tools/local/README.md) and
 [benchmark reproduction](tools/benchmarks/README.md) for the gated loopback fixture.
 The CI workflow is configured for Java 11/17/21. Clean local builds passed 75 unit
-tests and 16 local integration tests per JDK on 2026-09-07. Evidence distinguishes local runs from
-remote CI, releases and real-S3 validation.
+tests and 16 local integration tests per JDK on 2026-09-07. Evidence distinguishes
+local runs from remote CI, releases and real-S3 validation.
 
 Real AWS tests are a separately gated manual program and require explicit
-operator authorization plus a dedicated disposable bucket/key prefix. No real-S3
-success is claimed by local fixture tests.
+operator authorization plus a dedicated disposable bucket/key prefix. On
+2026-09-09, the guarded program passed against AWS S3 for deterministic 0-byte,
+1 KiB and 11 MiB objects, verifying exact length, SHA-256 integrity, object cleanup
+and multipart cleanup. The destination-free, commit-bound
+[receipt](evidence/real-s3/2026-09-09/receipt.json) and
+[checksum](evidence/real-s3/2026-09-09/receipt.sha256) are preserved publicly.
+This is protocol conformance evidence, not a performance, availability or adoption
+claim.
 
 ## Alternatives and scope
 

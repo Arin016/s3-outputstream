@@ -51,6 +51,21 @@ documented in [`tools/real-s3/README.md`](../tools/real-s3/README.md). It emits 
 destination-free receipt tied to the tested commit and refuses modified tracked
 source or a closed authorization gate.
 
+### Verified real-S3 conformance (2026-09-09)
+
+The guarded runner passed against AWS S3 using a dedicated, never-versioned,
+disposable bucket and a prefix-restricted test principal. It exercised deterministic
+0-byte, 1 KiB and 11 MiB payloads, covering single-PUT and multipart paths. Each
+download matched the expected length and SHA-256, and the harness verified removal
+of its exact objects and multipart uploads. The public
+[receipt](../evidence/real-s3/2026-09-09/receipt.json) contains no destination
+identifiers and records the exact source commit; its sibling checksum verifies the
+receipt bytes.
+
+This run establishes bounded protocol conformance for the recorded revision. It
+does not establish latency, availability, crash recovery, compatibility with every
+AWS SDK version, production usage or external adoption.
+
 No automated deploy goal is bound to ordinary verify/package. Signing/publishing
 configuration is deliberately an operator step after local artifacts are reviewed.
 

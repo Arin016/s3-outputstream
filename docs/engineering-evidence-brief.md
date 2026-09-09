@@ -40,6 +40,11 @@ third-party streams.
   tables and hashes are preserved under `evidence/`.
 - Binary, source and Javadoc artifacts were inspected; the binary targets Java 11
   and excludes test/benchmark classes.
+- A separately authorized least-privilege run against AWS S3 passed on September 9,
+  2026 for deterministic 0-byte, 1 KiB and 11 MiB payloads. It verified exact
+  length and SHA-256 after download, then verified exact object and multipart
+  cleanup. Its destination-free [receipt](../evidence/real-s3/2026-09-09/receipt.json)
+  is bound to the tested source commit and protected by a published checksum.
 
 See [benchmark results](benchmark-results.md) and the
 [measurement protocol](benchmark-protocol.md). Loopback Moto results are not
@@ -63,17 +68,14 @@ of ambiguous distributed-system outcomes.
 
 ## Remaining credibility gates
 
-This branch is an unreleased `2.0.0-SNAPSHOT`. It has not established Maven
-Central availability, a passing remote CI run for this branch, real-S3 validation,
-external adoption or independent technical review. Those gaps are more important
-than adding another feature. The concrete path is:
+This branch is an unreleased `2.0.0-SNAPSHOT`. It has established a passing public
+CI matrix and a bounded real-S3 conformance result, but not Maven Central
+availability, external adoption or independent technical review. Those remaining
+gaps are more important than adding another feature. The concrete path is:
 
 1. obtain owner review of the API and article;
-2. publish the reviewed branch and obtain a clean public CI matrix;
-3. run the separately gated least-privilege real-S3 conformance program, if
-   explicitly authorized;
-4. verify artifact coordinates/signing and make a release candidate;
-5. seek external review or a genuine downstream use before claiming adoption.
+2. verify artifact coordinates/signing and make a release candidate;
+3. seek external review or a genuine downstream use before claiming adoption.
 
 Exact operational prerequisites and claim boundaries are in
 [release.md](release.md).

@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "length",
+    "sha256",
+    "object_cleanup",
+    "multipart_cleanup"
+  ],
+  "destination_identifiers_recorded": false,
+  "ended_at": "2026-09-09T11:31:35.545004+00:00",
+  "exit_code": 0,
+  "message": "Real-S3 manual verification: PASS; exact test objects and multipart uploads removed.",
+  "schema": "s3-outputstream-real-conformance-receipt-v1",
+  "source_commit": "f635e059dcf55d5dd99b39dc9ab2806a776c2087",
+  "started_at": "2026-09-09T11:31:30.670932+00:00",
+  "status": "PASS",
+  "synthetic_sizes_bytes": [
+    0,
+    1024,
+    11534336
+  ]
+}
