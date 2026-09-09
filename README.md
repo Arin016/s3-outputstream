@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/Arin016/s3-outputstream/actions/workflows/ci.yml/badge.svg)](https://github.com/Arin016/s3-outputstream/actions/workflows/ci.yml)
 
+Reviewing this as an engineering artifact? Start with the
+[evidence brief](docs/engineering-evidence-brief.md), then inspect the
+[benchmark report](docs/benchmark-results.md), [migration contract](docs/migration.md)
+and [release gates](docs/release.md).
+
 A synchronous Java `OutputStream` for S3, with explicit completion, a reusable
 payload buffer, and testable multipart lifecycle handling. Java 11+.
 
