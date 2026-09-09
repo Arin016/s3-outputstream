@@ -1,8 +1,6 @@
 # An S3 OutputStream needs a success signal
 
-*Engineering article, revised 8 September 2026. The local `2.0.0-SNAPSHOT`
-candidate and this text are ready for author review; neither has been released
-or published.*
+*Engineering article, revised 10 September 2026 to incorporate the 9 September real-S3 conformance result. Author-reviewed by Arin Mallanna Tumbagi; unreleased and unpublished.*
 
 A failed export can leave a successful S3 object. The original version of
 `s3-outputstream`, at commit `939f2bd`, made this possible by completing uploads
@@ -333,10 +331,19 @@ and retries, and arrange lifecycle cleanup for abandoned multipart uploads.
 Interruption checks cannot forcibly cancel an arbitrary synchronous HTTP call.
 If downstream consumers must never discover an object after an ambiguous commit,
 the application needs a separate publication/reconciliation protocol; this stream
-alone cannot provide it. Real-S3 testing and public release remain separate steps.
+alone cannot provide it. Real-S3 conformance was verified on 9 September 2026;
+public release remains a separate step.
+
+The guarded real-S3 program passed against AWS S3 for deterministic 0-byte,
+1 KiB and 11 MiB objects, verifying exact length, SHA-256 integrity, object cleanup
+and multipart cleanup. The destination-free, commit-bound
+[receipt](../evidence/real-s3/2026-09-09/receipt.json) records tested source
+`f635e05`. This is bounded protocol conformance, not a performance, availability
+or adoption claim.
 
 *Provenance: the original repository is Arin Mallanna Tumbagi's public project.
 The September 2026 hardening, evaluation and article preparation were AI-assisted
-with Codex. This article describes repository behavior and synthetic local
-experiments; it does not establish production use or an internal-system lineage.
-Final author review is pending.*
+with Codex. This article describes repository behavior, synthetic local
+experiments and the bounded real-S3 conformance run above; it does not establish
+production use or an internal-system lineage.
+Author review completed 10 September 2026.*
