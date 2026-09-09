@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.arinmallanna</groupId>
+    <groupId>io.github.arin016</groupId>
     <artifactId>s3-outputstream</artifactId>
     <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
@@ -22,7 +22,7 @@
 
     <developers>
         <developer>
-            <id>arinmallanna</id>
+            <id>Arin016</id>
             <name>Arin Mallanna Tumbagi</name>
         </developer>
     </developers>

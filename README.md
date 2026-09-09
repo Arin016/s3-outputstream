@@ -171,7 +171,7 @@ may still contain identifiers and should be sanitized before logging.
 ./mvnw install --no-transfer-progress
 ```
 
-The local-install coordinates are `io.github.arinmallanna:s3-outputstream:2.0.0-SNAPSHOT`.
+The local-install coordinates are `io.github.arin016:s3-outputstream:2.0.0-SNAPSHOT`.
 AWS S3 remains a `provided` dependency: consumers supply their client dependency.
 The tested dependency set is pinned in the POM and CI. This does not promise
 compatibility with every AWS SDK version.

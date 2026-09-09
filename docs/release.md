@@ -22,10 +22,10 @@ article publication is part of local validation.
 
 ## Distribution prerequisites requiring owner action
 
-- Confirm that the publishing account controls the `io.github.arinmallanna`
-  namespace. The verified repository is owned by `Arin016`; repository URL fixes
-  do not establish ownership of a different Central namespace. If necessary,
-  choose and document verified coordinates before publishing.
+- Confirm the Central Portal publisher namespace `io.github.arin016` against the
+  repository owner's GitHub identity. The Java package and automatic-module name
+  remain `io.github.arinmallanna.s3outputstream`; Maven coordinates and Java
+  package names are independent.
 - Configure a Central Portal publisher account/token, signing key, developer
   contact details, and namespace verification outside Git. Verify current Portal
   requirements and test a candidate upload only after explicit authorization.
