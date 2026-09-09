@@ -46,6 +46,11 @@ access, configure timeouts/lifecycle cleanup, verify exact test-key removal and
 multipart cleanup, and archive only sanitized results. Do not log credentials,
 profiles, endpoints, bucket names, keys, signed URLs or object contents.
 
+The guarded runner, exact environment contract and least-privilege action list are
+documented in [`tools/real-s3/README.md`](../tools/real-s3/README.md). It emits a
+destination-free receipt tied to the tested commit and refuses modified tracked
+source or a closed authorization gate.
+
 No automated deploy goal is bound to ordinary verify/package. Signing/publishing
 configuration is deliberately an operator step after local artifacts are reviewed.
 
