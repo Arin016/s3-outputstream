@@ -10,8 +10,7 @@ and [release gates](docs/release.md).
 A synchronous Java `OutputStream` for S3, with explicit completion, a reusable
 payload buffer, and testable multipart lifecycle handling. Java 11+.
 
-**This branch is an unreleased `2.0.0-SNAPSHOT`.** It changes the default close
-contract. Maven Central availability is not established; build locally to try it.
+**This branch is the `2.0.0` release candidate.** Maven Central availability is established only after the tagged release is published; until then build locally to try it.
 See [migration](docs/migration.md), [changelog](CHANGELOG.md), and
 [release checklist](docs/release.md).
 
@@ -171,7 +170,7 @@ may still contain identifiers and should be sanitized before logging.
 ./mvnw install --no-transfer-progress
 ```
 
-The local-install coordinates are `io.github.arin016:s3-outputstream:2.0.0-SNAPSHOT`.
+The local-install coordinates are `io.github.arin016:s3-outputstream:2.0.0`.
 AWS S3 remains a `provided` dependency: consumers supply their client dependency.
 The tested dependency set is pinned in the POM and CI. This does not promise
 compatibility with every AWS SDK version.

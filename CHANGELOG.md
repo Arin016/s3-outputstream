@@ -1,8 +1,8 @@
 # Changelog
 
-## 2.0.0 — pending release (prep 2026-09-10)
+## 2.0.0 — 2026-09-10
 
-Release candidate comprises the `2.0.0-SNAPSHOT` hardening below plus:
+Release comprises the `2.0.0-SNAPSHOT` hardening below plus:
 
 - Guarded real-S3 conformance PASS on 2026-09-09 at source `f635e05`: deterministic 0-byte, 1 KiB and 11 MiB objects verified for exact length, SHA-256, object cleanup and multipart cleanup. Receipt: `evidence/real-s3/2026-09-09/receipt.json` (destination-free).
 - Engineering article `docs/article.md` revised 2026-09-10 to cite the Sep 9 conformance; author-reviewed by Arin Mallanna Tumbagi 2026-09-10; unreleased and unpublished.
